@@ -33,7 +33,6 @@ export default function SignUpPage() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
@@ -44,23 +43,29 @@ export default function SignUpPage() {
     }
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/dashboard`,
-          data: {
-            name: formData.name,
-            caretaker_name: formData.caretakerName,
-            relation: formData.relation,
-            phone_number: formData.phoneNumber,
-            fhir_id: formData.fhirId,
-          },
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phoneNumber,
+          caretakerName: formData.caretakerName,
+          relation: formData.relation,
+          fhirId: formData.fhirId,
+        }),
       })
 
-      if (authError) throw authError
+      const data = await response.json()
 
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create account')
+      }
+
+      // Redirect to dashboard after successful signup
       router.push("/dashboard")
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")

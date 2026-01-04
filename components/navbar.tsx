@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Heart, Menu, X, Calendar, Bell, MessageCircle, LayoutDashboard, LogOut, User } from "lucide-react"
+import { Heart, Menu, X, Calendar, Bell, MessageCircle, LayoutDashboard, LogOut, User, Activity } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +61,7 @@ export function Navbar() {
   const navigationItems = isAuthenticated
     ? [
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/vitals", label: "Vitals", icon: Activity },
         { href: "/scheduler", label: "Scheduler", icon: Calendar },
         { href: "/reminders", label: "Reminders", icon: Bell },
         { href: "/chat", label: "AI Chat", icon: MessageCircle },

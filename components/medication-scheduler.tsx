@@ -35,6 +35,7 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [schedules, setSchedules] = useState<MedicationSchedule[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<MedicationSchedule | null>(null)
 
@@ -45,7 +46,7 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
 
   // Form state for adding/editing schedules
   const [formData, setFormData] = useState({
-    medication_id: "",
+    medication_name: "",
     scheduled_time: "",
     days_of_week: [] as string[],
     dosage: "",
@@ -89,19 +90,32 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
   const loadSchedules = async () => {
     setIsLoading(true)
     try {
-      // For now, we'll create a mock schedules table structure
-      // In a real app, you'd create a medication_schedules table
-      const mockSchedules: MedicationSchedule[] = medications.map((med, index) => ({
-        id: `schedule-${index}`,
-        medication_id: med.id,
-        medication_name: med.medication_name,
-        scheduled_time: index % 2 === 0 ? "08:00" : "20:00",
-        days_of_week: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
-        dosage: med.dosage || "1 tablet",
-        notes: "Take with food",
-        is_active: true,
+      const { data, error } = await supabase
+        .from('medication_schedules')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('scheduled_time', { ascending: true })
+
+      if (error) {
+        console.error('Error loading schedules:', error)
+        return
+      }
+
+      // Transform database data to match our interface
+      const transformedSchedules: MedicationSchedule[] = data.map(schedule => ({
+        id: schedule.id,
+        medication_id: schedule.id, // Use schedule id as medication_id for now
+        medication_name: schedule.medication_name,
+        scheduled_time: schedule.scheduled_time,
+        days_of_week: schedule.days_of_week,
+        dosage: schedule.dosage,
+        notes: schedule.notes,
+        is_active: schedule.is_active,
+        created_at: schedule.created_at
       }))
-      setSchedules(mockSchedules)
+
+      setSchedules(transformedSchedules)
     } catch (error) {
       console.error("Error loading schedules:", error)
     } finally {
@@ -112,7 +126,7 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
   const handleAddSchedule = () => {
     setEditingSchedule(null)
     setFormData({
-      medication_id: "",
+      medication_name: "",
       scheduled_time: "",
       days_of_week: [],
       dosage: "",
@@ -124,7 +138,7 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
   const handleEditSchedule = (schedule: MedicationSchedule) => {
     setEditingSchedule(schedule)
     setFormData({
-      medication_id: schedule.medication_id,
+      medication_name: schedule.medication_name,
       scheduled_time: schedule.scheduled_time,
       days_of_week: schedule.days_of_week,
       dosage: schedule.dosage,
@@ -134,34 +148,101 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
   }
 
   const handleSaveSchedule = async () => {
+    setIsSaving(true)
     try {
-      const selectedMedication = medications.find((med) => med.id === formData.medication_id)
+      // Validate required fields
+      if (!formData.medication_name.trim()) {
+        alert("Please enter a medication name")
+        return
+      }
+      if (!formData.scheduled_time) {
+        alert("Please select a time")
+        return
+      }
+      if (formData.days_of_week.length === 0) {
+        alert("Please select at least one day")
+        return
+      }
+      if (!formData.dosage.trim()) {
+        alert("Please enter the dosage")
+        return
+      }
 
-      const newSchedule: MedicationSchedule = {
-        id: editingSchedule?.id || `schedule-${Date.now()}`,
-        medication_id: formData.medication_id,
-        medication_name: selectedMedication?.medication_name || "Unknown",
+      const scheduleData = {
+        user_id: user.id,
+        medication_name: formData.medication_name.trim(),
         scheduled_time: formData.scheduled_time,
         days_of_week: formData.days_of_week,
-        dosage: formData.dosage,
-        notes: formData.notes,
-        is_active: true,
+        dosage: formData.dosage.trim(),
+        notes: formData.notes.trim() || null,
+        is_active: true
       }
 
       if (editingSchedule) {
-        setSchedules((prev) => prev.map((s) => (s.id === editingSchedule.id ? newSchedule : s)))
+        // Update existing schedule
+        const { error } = await supabase
+          .from('medication_schedules')
+          .update(scheduleData)
+          .eq('id', editingSchedule.id)
+          .eq('user_id', user.id)
+
+        if (error) {
+          console.error('Error updating schedule:', error)
+          alert('Failed to update schedule. Please try again.')
+          return
+        }
       } else {
-        setSchedules((prev) => [...prev, newSchedule])
+        // Insert new schedule
+        const { error } = await supabase
+          .from('medication_schedules')
+          .insert([scheduleData])
+
+        if (error) {
+          console.error('Error creating schedule:', error)
+          alert('Failed to create schedule. Please try again.')
+          return
+        }
       }
 
+      // Reload schedules from database
+      await loadSchedules()
       setShowAddDialog(false)
+      
+      // Show success message
+      alert(editingSchedule ? 'Schedule updated successfully!' : 'Schedule created successfully!')
     } catch (error) {
       console.error("Error saving schedule:", error)
+      alert('An unexpected error occurred. Please try again.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
-  const handleDeleteSchedule = (scheduleId: string) => {
-    setSchedules((prev) => prev.filter((s) => s.id !== scheduleId))
+  const handleDeleteSchedule = async (scheduleId: string) => {
+    if (!confirm('Are you sure you want to delete this medication schedule?')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('medication_schedules')
+        .delete()
+        .eq('id', scheduleId)
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('Error deleting schedule:', error)
+        alert('Failed to delete schedule. Please try again.')
+        return
+      }
+
+      // Remove from local state
+      setSchedules((prev) => prev.filter((s) => s.id !== scheduleId))
+      alert('Schedule deleted successfully!')
+    } catch (error) {
+      console.error('Error deleting schedule:', error)
+      alert('An unexpected error occurred. Please try again.')
+    }
   }
 
   const toggleDayOfWeek = (day: string) => {
@@ -170,6 +251,14 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
       days_of_week: prev.days_of_week.includes(day)
         ? prev.days_of_week.filter((d) => d !== day)
         : [...prev.days_of_week, day],
+    }))
+  }
+
+  const selectAllDays = () => {
+    const allDays = daysOfWeek.map(day => day.value)
+    setFormData((prev) => ({
+      ...prev,
+      days_of_week: allDays,
     }))
   }
 
@@ -331,22 +420,13 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="medication">Medication</Label>
-              <Select
-                value={formData.medication_id}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, medication_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select medication" />
-                </SelectTrigger>
-                <SelectContent>
-                  {medications.map((med) => (
-                    <SelectItem key={med.id} value={med.id}>
-                      {med.medication_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="medication">Medication Name</Label>
+              <Input
+                id="medication"
+                value={formData.medication_name}
+                onChange={(e) => setFormData((prev) => ({ ...prev, medication_name: e.target.value }))}
+                placeholder="Enter medication name (e.g., Aspirin, Metformin)"
+              />
             </div>
 
             <div>
@@ -382,6 +462,14 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
                     {day.label.slice(0, 3)}
                   </Button>
                 ))}
+                <Button
+                  type="button"
+                  variant={formData.days_of_week.length === 7 ? "default" : "outline"}
+                  size="sm"
+                  onClick={selectAllDays}
+                >
+                  Every Day
+                </Button>
               </div>
             </div>
 
@@ -406,10 +494,18 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
             </div>
 
             <div className="flex gap-2 pt-4">
-              <Button onClick={handleSaveSchedule} className="flex-1">
-                {editingSchedule ? "Update Schedule" : "Add Schedule"}
+              <Button 
+                onClick={handleSaveSchedule} 
+                className="flex-1"
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : (editingSchedule ? "Update Schedule" : "Add Schedule")}
               </Button>
-              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowAddDialog(false)}
+                disabled={isSaving}
+              >
                 Cancel
               </Button>
             </div>

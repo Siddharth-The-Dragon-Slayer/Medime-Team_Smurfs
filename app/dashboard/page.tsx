@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { Navbar } from "@/components/navbar"
 import { MedicationDashboard } from "@/components/medication-dashboard"
+import { VitalSignsDashboard } from "@/components/vital-signs-dashboard"
 
 async function createClient() {
   const cookieStore = await cookies()
@@ -47,7 +48,8 @@ export default async function DashboardPage() {
         }}
       />
 
-      <div className="pt-16">
+      <div className="pt-16 p-6 space-y-8">
+        <VitalSignsDashboard />
         <MedicationDashboard user={data.user} profile={profile} />
       </div>
     </div>
