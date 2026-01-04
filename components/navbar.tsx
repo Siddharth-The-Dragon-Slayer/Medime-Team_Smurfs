@@ -61,6 +61,7 @@ export function Navbar() {
   const navigationItems = isAuthenticated
     ? [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/vitals", label: "Vitals", icon: Activity },
       { href: "/scheduler", label: "Scheduler", icon: Calendar },
       { href: "/reminders", label: "Reminders", icon: Bell },
       { href: "/chat", label: "AI Chat", icon: MessageCircle },
