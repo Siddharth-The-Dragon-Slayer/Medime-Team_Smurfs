@@ -1,0 +1,40 @@
+name: Medication Check Cron Job
+
+on:
+  schedule:
+    # Runs every 15 minutes
+    - cron: '*/35 * * * *'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  check-medications:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check medications and send notifications
+        run: |
+          echo "Checking medications at $(date)"
+          
+          response=$(curl -s -w "\n%{http_code}" -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            ${{ secrets.APP_URL }}/api/cron/check-medications)
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Medication check failed with status $http_code"
+            exit 1
+          fi
+          
+          echo "Medication check completed successfully"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Medication check failed! Check the logs above."
