@@ -191,6 +191,25 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
           alert('Failed to update schedule. Please try again.')
           return
         }
+
+        // Also update the medication entry
+        const { error: medError } = await supabase
+          .from('medications')
+          .update({
+            name: formData.medication_name.trim(),
+            dosage: formData.dosage.trim(),
+            frequency: formData.days_of_week.length === 7 ? 'daily' : `${formData.days_of_week.length} times per week`,
+            frequency_times: formData.days_of_week.length,
+            instructions: formData.notes.trim() || null,
+            reminder_times: [formData.scheduled_time],
+            is_active: true,
+          })
+          .eq('name', editingSchedule.medication_name)
+          .eq('user_id', user.id)
+
+        if (medError) {
+          console.error('Error updating medication:', medError)
+        }
       } else {
         // Insert new schedule
         const { error } = await supabase
@@ -202,12 +221,36 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
           alert('Failed to create schedule. Please try again.')
           return
         }
+
+        // Also insert into medications table for dashboard display
+        const medicationData = {
+          user_id: user.id,
+          name: formData.medication_name.trim(),
+          dosage: formData.dosage.trim(),
+          frequency: formData.days_of_week.length === 7 ? 'daily' : `${formData.days_of_week.length} times per week`,
+          frequency_times: formData.days_of_week.length,
+          start_date: new Date().toISOString().split('T')[0],
+          instructions: formData.notes.trim() || null,
+          is_active: true,
+          reminder_enabled: true,
+          reminder_times: [formData.scheduled_time],
+        }
+
+        const { error: medError } = await supabase
+          .from('medications')
+          .insert([medicationData])
+
+        if (medError) {
+          console.error('Error creating medication:', medError)
+          // Don't fail the whole operation if medication insert fails
+          // The schedule was created successfully
+        }
       }
 
       // Reload schedules from database
       await loadSchedules()
       setShowAddDialog(false)
-      
+
       // Show success message
       alert(editingSchedule ? 'Schedule updated successfully!' : 'Schedule created successfully!')
     } catch (error) {
@@ -263,10 +306,43 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
   }
 
   const getTodaysSchedules = () => {
-    const today = format(selectedDate, "EEEE").toLowerCase()
-    return schedules
-      .filter((schedule) => schedule.days_of_week.includes(today) && schedule.is_active)
+    const today = format(selectedDate, "EEEE").toLowerCase() // e.g., "friday"
+    const todayShort = format(selectedDate, "EEE").toLowerCase() // e.g., "fri"
+
+    console.log('Today is:', today, 'Short:', todayShort)
+    console.log('All schedules:', schedules)
+
+    const filtered = schedules
+      .filter((schedule) => {
+        // Handle days_of_week being either array or string
+        let daysArray = schedule.days_of_week
+        if (typeof daysArray === 'string') {
+          try {
+            daysArray = JSON.parse(daysArray)
+          } catch {
+            daysArray = []
+          }
+        }
+        if (!Array.isArray(daysArray)) {
+          daysArray = []
+        }
+
+        // Check if any day in the array matches today (full name or abbreviation)
+        const hasToday = daysArray.some((day: string) => {
+          const dayLower = day.toLowerCase()
+          return dayLower === today ||
+            dayLower === todayShort ||
+            today.startsWith(dayLower) ||
+            dayLower.startsWith(todayShort.slice(0, 3))
+        })
+
+        console.log(`Checking schedule: ${schedule.medication_name}, days: ${JSON.stringify(daysArray)}, includes today?`, hasToday)
+        return hasToday && schedule.is_active
+      })
       .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time))
+
+    console.log('Filtered schedules for today:', filtered)
+    return filtered
   }
 
   return (
@@ -494,15 +570,15 @@ export function MedicationScheduler({ user, profile, medications }: MedicationSc
             </div>
 
             <div className="flex gap-2 pt-4">
-              <Button 
-                onClick={handleSaveSchedule} 
+              <Button
+                onClick={handleSaveSchedule}
                 className="flex-1"
                 disabled={isSaving}
               >
                 {isSaving ? "Saving..." : (editingSchedule ? "Update Schedule" : "Add Schedule")}
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowAddDialog(false)}
                 disabled={isSaving}
               >

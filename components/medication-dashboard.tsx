@@ -18,17 +18,32 @@ export function MedicationDashboard({ user, profile }: MedicationDashboardProps)
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
-  const fetchMedicationsFromFHIR = async () => {
+  const fetchMedications = async () => {
     setIsLoading(true)
     setError(null)
-    setIsLoading(false)
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+
+      if (fetchError) throw fetchError
+
+      setMedications(data || [])
+    } catch (err: any) {
+      console.error('Error fetching medications:', err)
+      setError(err.message || 'Failed to load medications')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
-    if (profile?.fhir_id) {
-      fetchMedicationsFromFHIR()
-    }
-  }, [profile])
+    fetchMedications()
+  }, [user.id])
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -154,12 +169,13 @@ export function MedicationDashboard({ user, profile }: MedicationDashboardProps)
               Your Medications
             </CardTitle>
             <Button
-              onClick={fetchMedicationsFromFHIR}
-              disabled={isLoading || !profile?.fhir_id}
-              className="bg-primary hover:bg-primary/90"
+              onClick={fetchMedications}
+              disabled={isLoading}
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary/10"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-              {isLoading ? "Fetching..." : "Fetch from FHIR"}
+              {isLoading ? "Refreshing..." : "Refresh"}
             </Button>
           </div>
         </CardHeader>
@@ -175,9 +191,7 @@ export function MedicationDashboard({ user, profile }: MedicationDashboardProps)
               <Pill className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No medications found</h3>
               <p className="text-gray-600 mb-4">
-                {profile?.fhir_id
-                  ? "Click 'Fetch from FHIR' to load your medications from your healthcare provider."
-                  : "Please update your profile with a valid FHIR ID to fetch your medications."}
+                You haven't scheduled any medications yet. Click on "Schedule Medications" above to add your first medication.
               </p>
             </div>
           ) : (
@@ -186,7 +200,7 @@ export function MedicationDashboard({ user, profile }: MedicationDashboardProps)
                 <Card key={medication.id} className="border-green-100 bg-green-50/30">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
-                      <h4 className="font-semibold text-gray-900 text-sm">{medication.medication_name}</h4>
+                      <h4 className="font-semibold text-gray-900 text-sm">{medication.name}</h4>
                       <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">
                         Active
                       </Badge>
@@ -201,10 +215,20 @@ export function MedicationDashboard({ user, profile }: MedicationDashboardProps)
                         <span className="text-gray-600">Frequency:</span>
                         <p className="font-medium">{medication.frequency}</p>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Instructions:</span>
-                        <p className="font-medium text-xs">{medication.instructions}</p>
-                      </div>
+                      {medication.instructions && (
+                        <div>
+                          <span className="text-gray-600">Instructions:</span>
+                          <p className="font-medium text-xs">{medication.instructions}</p>
+                        </div>
+                      )}
+                      {medication.reminder_times && medication.reminder_times.length > 0 && (
+                        <div>
+                          <span className="text-gray-600">Reminder Times:</span>
+                          <p className="font-medium text-xs">
+                            {medication.reminder_times.join(', ')}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
