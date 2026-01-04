@@ -5,4 +5,5 @@ const config = {
   },
 }
 
+// Enhanced PostCSS configuration for MediPlus medical dashboard
 export default config

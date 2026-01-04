@@ -6,18 +6,18 @@ import { Activity, TrendingUp } from "lucide-react"
 
 // Static data that's always available
 const vitalsData = [
-  { time: '00:00', temperature: 36.2, heartRate: 68, oxygenLevel: 98, humidity: 45 },
-  { time: '02:00', temperature: 36.1, heartRate: 65, oxygenLevel: 97, humidity: 47 },
-  { time: '04:00', temperature: 36.0, heartRate: 62, oxygenLevel: 98, humidity: 44 },
-  { time: '06:00', temperature: 36.3, heartRate: 70, oxygenLevel: 99, humidity: 46 },
-  { time: '08:00', temperature: 36.5, heartRate: 75, oxygenLevel: 98, humidity: 48 },
-  { time: '10:00', temperature: 36.7, heartRate: 78, oxygenLevel: 97, humidity: 50 },
-  { time: '12:00', temperature: 36.8, heartRate: 82, oxygenLevel: 98, humidity: 52 },
-  { time: '14:00', temperature: 37.0, heartRate: 85, oxygenLevel: 97, humidity: 54 },
-  { time: '16:00', temperature: 36.9, heartRate: 80, oxygenLevel: 98, humidity: 51 },
-  { time: '18:00', temperature: 36.7, heartRate: 76, oxygenLevel: 98, humidity: 49 },
-  { time: '20:00', temperature: 36.5, heartRate: 72, oxygenLevel: 97, humidity: 47 },
-  { time: '22:00', temperature: 36.3, heartRate: 69, oxygenLevel: 98, humidity: 45 }
+  { time: '00:00', temperature: 36.2, heartRate: 68, oxygenLevel: 98, bloodPressureSystolic: 118, bloodPressureDiastolic: 78 },
+  { time: '02:00', temperature: 36.1, heartRate: 65, oxygenLevel: 97, bloodPressureSystolic: 115, bloodPressureDiastolic: 75 },
+  { time: '04:00', temperature: 36.0, heartRate: 62, oxygenLevel: 98, bloodPressureSystolic: 112, bloodPressureDiastolic: 72 },
+  { time: '06:00', temperature: 36.3, heartRate: 70, oxygenLevel: 99, bloodPressureSystolic: 120, bloodPressureDiastolic: 80 },
+  { time: '08:00', temperature: 36.5, heartRate: 75, oxygenLevel: 98, bloodPressureSystolic: 125, bloodPressureDiastolic: 82 },
+  { time: '10:00', temperature: 36.7, heartRate: 78, oxygenLevel: 97, bloodPressureSystolic: 128, bloodPressureDiastolic: 85 },
+  { time: '12:00', temperature: 36.8, heartRate: 82, oxygenLevel: 98, bloodPressureSystolic: 130, bloodPressureDiastolic: 88 },
+  { time: '14:00', temperature: 37.0, heartRate: 85, oxygenLevel: 97, bloodPressureSystolic: 132, bloodPressureDiastolic: 90 },
+  { time: '16:00', temperature: 36.9, heartRate: 80, oxygenLevel: 98, bloodPressureSystolic: 128, bloodPressureDiastolic: 86 },
+  { time: '18:00', temperature: 36.7, heartRate: 76, oxygenLevel: 98, bloodPressureSystolic: 124, bloodPressureDiastolic: 82 },
+  { time: '20:00', temperature: 36.5, heartRate: 72, oxygenLevel: 97, bloodPressureSystolic: 120, bloodPressureDiastolic: 80 },
+  { time: '22:00', temperature: 36.3, heartRate: 69, oxygenLevel: 98, bloodPressureSystolic: 118, bloodPressureDiastolic: 78 }
 ]
 
 export function VitalsGraph() {
@@ -85,9 +85,9 @@ export function VitalsGraph() {
             </div>
           </div>
 
-          {/* Oxygen & Humidity Chart */}
+          {/* Oxygen & Blood Pressure Chart */}
           <div>
-            <h4 className="text-sm font-medium text-gray-700/80 mb-3">Oxygen Level & Humidity</h4>
+            <h4 className="text-sm font-medium text-gray-700/80 mb-3">Oxygen Level & Blood Pressure</h4>
             <div style={{ width: '100%', height: '200px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={vitalsData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -103,9 +103,9 @@ export function VitalsGraph() {
                     tick={{ fontSize: 12, fill: 'rgba(107, 114, 128, 0.8)' }}
                   />
                   <YAxis 
-                    yAxisId="humidity" 
+                    yAxisId="bp" 
                     orientation="right" 
-                    domain={[30, 70]} 
+                    domain={[60, 150]} 
                     tick={{ fontSize: 12, fill: 'rgba(107, 114, 128, 0.8)' }}
                   />
                   <Tooltip 
@@ -125,13 +125,22 @@ export function VitalsGraph() {
                     name="Oxygen Level (%)"
                   />
                   <Line
-                    yAxisId="humidity"
+                    yAxisId="bp"
                     type="monotone"
-                    dataKey="humidity"
+                    dataKey="bloodPressureSystolic"
                     stroke="#8b5cf6"
                     strokeWidth={2}
                     dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 3 }}
-                    name="Humidity (%)"
+                    name="Systolic BP (mmHg)"
+                  />
+                  <Line
+                    yAxisId="bp"
+                    type="monotone"
+                    dataKey="bloodPressureDiastolic"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={{ fill: '#f59e0b', strokeWidth: 2, r: 3 }}
+                    name="Diastolic BP (mmHg)"
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -154,8 +163,8 @@ export function VitalsGraph() {
             <div className="text-lg font-semibold text-green-600">98%</div>
           </div>
           <div className="text-center">
-            <div className="text-sm text-gray-600/80">Avg Humidity</div>
-            <div className="text-lg font-semibold text-purple-600">48%</div>
+            <div className="text-sm text-gray-600/80">Avg Blood Pressure</div>
+            <div className="text-lg font-semibold text-purple-600">123/81</div>
           </div>
         </div>
       </CardContent>

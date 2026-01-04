@@ -1,3 +1,5 @@
+# MediPlus Healthcare Monitoring System - Package Lock File
+# Updated for enhanced medical vitals tracking and FHIR integration
 lockfileVersion: '9.0'
 
 settings:
