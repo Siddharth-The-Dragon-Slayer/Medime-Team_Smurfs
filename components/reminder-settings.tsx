@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Bell, Plus, Trash2, Clock } from "lucide-react"
 
 interface ReminderSetting {
@@ -43,6 +44,9 @@ export function ReminderSettings() {
   ])
 
   const [newTime, setNewTime] = useState("")
+  const [isAddingReminder, setIsAddingReminder] = useState(false)
+  const [newMedication, setNewMedication] = useState("")
+  const [newReminderTime, setNewReminderTime] = useState("")
 
   const addTimeToReminder = (reminderId: string, time: string) => {
     if (!time) return
@@ -73,6 +77,25 @@ export function ReminderSettings() {
 
   const deleteReminder = (reminderId: string) => {
     setReminders((prev) => prev.filter((reminder) => reminder.id !== reminderId))
+  }
+
+  const addNewReminder = () => {
+    if (!newMedication.trim()) return
+
+    const newReminder: ReminderSetting = {
+      id: Date.now().toString(),
+      medication: newMedication.trim(),
+      times: newReminderTime ? [newReminderTime] : [],
+      enabled: true,
+      sound: true,
+      vibration: true,
+      snoozeMinutes: 15,
+    }
+
+    setReminders((prev) => [...prev, newReminder])
+    setNewMedication("")
+    setNewReminderTime("")
+    setIsAddingReminder(false)
   }
 
   return (
@@ -179,10 +202,47 @@ export function ReminderSettings() {
 
       <Card className="border-dashed border-2 border-gray-200">
         <CardContent className="flex items-center justify-center py-8">
-          <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
-            <Plus className="w-4 h-4" />
-            <span>Add New Medication Reminder</span>
-          </Button>
+          <Dialog open={isAddingReminder} onOpenChange={setIsAddingReminder}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
+                <Plus className="w-4 h-4" />
+                <span>Add New Medication Reminder</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add New Medication Reminder</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="medication-name">Medication Name</Label>
+                  <Input
+                    id="medication-name"
+                    placeholder="e.g., Aspirin 100mg"
+                    value={newMedication}
+                    onChange={(e) => setNewMedication(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="first-time">First Reminder Time (Optional)</Label>
+                  <Input
+                    id="first-time"
+                    type="time"
+                    value={newReminderTime}
+                    onChange={(e) => setNewReminderTime(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setIsAddingReminder(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={addNewReminder} disabled={!newMedication.trim()}>
+                    Add Reminder
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
     </div>
