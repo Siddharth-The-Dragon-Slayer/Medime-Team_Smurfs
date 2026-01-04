@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Heart, Thermometer, Droplets, Activity, AlertTriangle, Play, Pause, Zap, TrendingUp, TrendingDown } from "lucide-react"
+import { Heart, Thermometer, Droplets, Activity, AlertTriangle, Play, Pause, Wifi, WifiOff } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts"
 
 interface VitalSigns {
@@ -23,6 +23,17 @@ interface VitalData {
   humidity: number
 }
 
+interface ArduinoResponse {
+  temperature: number
+  heartRate: number
+  oxygenLevel: number
+  humidity: number
+  timestamp: string
+  connected: boolean
+  source: string
+  error?: string
+}
+
 export function VitalSignsDashboard() {
   const [vitals, setVitals] = useState<VitalSigns>({
     temperature: 36.5,
@@ -31,11 +42,14 @@ export function VitalSignsDashboard() {
     humidity: 45,
     timestamp: ""
   })
-  
+
   const [historicalData, setHistoricalData] = useState<VitalData[]>([])
-  const [isSimulating, setIsSimulating] = useState(false)
+  const [isMonitoring, setIsMonitoring] = useState(false)
+  const [arduinoConnected, setArduinoConnected] = useState(false)
+  const [useSimulation, setUseSimulation] = useState(false)
   const [alerts, setAlerts] = useState<string[]>([])
   const [mounted, setMounted] = useState(false)
+  const [connectionError, setConnectionError] = useState<string>("")
 
   // Fix hydration issue by only setting timestamp on client
   useEffect(() => {
@@ -46,47 +60,91 @@ export function VitalSignsDashboard() {
     }))
   }, [])
 
-  // Simulate real-time vital signs
+  // Fetch real data from Arduino or simulate
   useEffect(() => {
     let interval: NodeJS.Timeout
 
-    if (isSimulating) {
+    if (isMonitoring) {
+      // Fetch immediately on start
+      fetchVitalSigns()
+
+      // Then fetch every 10 seconds (matching Arduino's sensor read interval)
       interval = setInterval(() => {
-        const now = new Date()
-        const timeString = now.toLocaleTimeString()
-        
-        // Generate realistic vital sign variations
-        const newVitals: VitalSigns = {
-          temperature: parseFloat((36.0 + Math.random() * 2.5).toFixed(1)), // 36.0-38.5°C
-          heartRate: Math.floor(60 + Math.random() * 40), // 60-100 BPM
-          oxygenLevel: Math.floor(95 + Math.random() * 5), // 95-100%
-          humidity: Math.floor(40 + Math.random() * 20), // 40-60%
-          timestamp: timeString
-        }
-
-        setVitals(newVitals)
-
-        // Add to historical data (keep last 20 points)
-        setHistoricalData(prev => {
-          const newData = [...prev, {
-            time: timeString,
-            temperature: newVitals.temperature,
-            heartRate: newVitals.heartRate,
-            oxygenLevel: newVitals.oxygenLevel,
-            humidity: newVitals.humidity
-          }]
-          return newData.slice(-20)
-        })
-
-        // Check for alerts
-        checkVitalAlerts(newVitals)
-      }, 2000) // Update every 2 seconds
+        fetchVitalSigns()
+      }, 10000)
     }
 
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [isSimulating])
+  }, [isMonitoring, useSimulation])
+
+  const fetchVitalSigns = async () => {
+    const now = new Date()
+    const timeString = now.toLocaleTimeString()
+
+    if (useSimulation) {
+      // Simulation mode
+      const newVitals: VitalSigns = {
+        temperature: parseFloat((36.0 + Math.random() * 2.5).toFixed(1)),
+        heartRate: Math.floor(60 + Math.random() * 40),
+        oxygenLevel: Math.floor(95 + Math.random() * 5),
+        humidity: Math.floor(40 + Math.random() * 20),
+        timestamp: timeString
+      }
+
+      setVitals(newVitals)
+      setArduinoConnected(false)
+      setConnectionError("Using simulated data")
+      updateHistoricalData(newVitals, timeString)
+      checkVitalAlerts(newVitals)
+    } else {
+      // Real Arduino data
+      try {
+        const response = await fetch('/api/arduino')
+        const data: ArduinoResponse = await response.json()
+
+        if (data.connected && data.source === 'arduino') {
+          const newVitals: VitalSigns = {
+            temperature: data.temperature,
+            heartRate: data.heartRate,
+            oxygenLevel: data.oxygenLevel,
+            humidity: data.humidity,
+            timestamp: timeString
+          }
+
+          setVitals(newVitals)
+          setArduinoConnected(true)
+          setConnectionError("")
+          updateHistoricalData(newVitals, timeString)
+          checkVitalAlerts(newVitals)
+        } else {
+          // Arduino disconnected, switch to simulation
+          setArduinoConnected(false)
+          setConnectionError(data.error || "Arduino disconnected")
+          setUseSimulation(true)
+        }
+      } catch (error: any) {
+        console.error('Failed to fetch Arduino data:', error)
+        setArduinoConnected(false)
+        setConnectionError(error.message || "Failed to connect to Arduino")
+        setUseSimulation(true)
+      }
+    }
+  }
+
+  const updateHistoricalData = (newVitals: VitalSigns, timeString: string) => {
+    setHistoricalData(prev => {
+      const newData = [...prev, {
+        time: timeString,
+        temperature: newVitals.temperature,
+        heartRate: newVitals.heartRate,
+        oxygenLevel: newVitals.oxygenLevel,
+        humidity: newVitals.humidity
+      }]
+      return newData.slice(-20) // Keep last 20 points
+    })
+  }
 
   const checkVitalAlerts = (vitals: VitalSigns) => {
     const newAlerts: string[] = []
@@ -160,24 +218,58 @@ export function VitalSignsDashboard() {
               <Activity className="h-5 w-5" />
               Real-Time Vital Signs Monitor
             </span>
-            <Button
-              onClick={() => setIsSimulating(!isSimulating)}
-              variant={isSimulating ? "destructive" : "default"}
-              className="flex items-center gap-2"
-            >
-              {isSimulating ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {isSimulating ? "Stop Simulation" : "Start Simulation"}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setUseSimulation(!useSimulation)}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                {useSimulation ? "Use Real Data" : "Use Simulation"}
+              </Button>
+              <Button
+                onClick={() => setIsMonitoring(!isMonitoring)}
+                variant={isMonitoring ? "destructive" : "default"}
+                className="flex items-center gap-2"
+              >
+                {isMonitoring ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                {isMonitoring ? "Stop Monitoring" : "Start Monitoring"}
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <div className={`h-3 w-3 rounded-full ${isSimulating ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
+              <div className={`h-3 w-3 rounded-full ${isMonitoring ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
               <span className="text-sm text-gray-600">
-                {isSimulating ? 'Live monitoring active' : 'Monitoring paused'}
+                {isMonitoring ? 'Monitoring active' : 'Monitoring paused'}
               </span>
             </div>
+
+            {/* Arduino Connection Status */}
+            <div className="flex items-center gap-2">
+              {arduinoConnected ? (
+                <>
+                  <Wifi className="h-4 w-4 text-green-600" />
+                  <Badge className="bg-green-100 text-green-800">Arduino Connected</Badge>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-4 w-4 text-gray-400" />
+                  <Badge className="bg-gray-100 text-gray-600">
+                    {useSimulation ? "Simulation Mode" : "Arduino Disconnected"}
+                  </Badge>
+                </>
+              )}
+            </div>
+
+            {connectionError && !arduinoConnected && (
+              <span className="text-xs text-gray-500">
+                {connectionError}
+              </span>
+            )}
+
             <div className="text-sm text-gray-500">
               {mounted ? `Last updated: ${vitals.timestamp}` : 'Loading...'}
             </div>
@@ -223,7 +315,7 @@ export function VitalSignsDashboard() {
               </div>
               <div className="flex flex-col items-end gap-2">
                 {getStatusBadge(getVitalStatus('temperature', vitals.temperature))}
-                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('temperature', vitals.temperature))} ${isSimulating ? 'animate-pulse' : ''}`} />
+                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('temperature', vitals.temperature))} ${isMonitoring ? 'animate-pulse' : ''}`} />
               </div>
             </div>
           </CardContent>
@@ -243,7 +335,7 @@ export function VitalSignsDashboard() {
               </div>
               <div className="flex flex-col items-end gap-2">
                 {getStatusBadge(getVitalStatus('heartRate', vitals.heartRate))}
-                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('heartRate', vitals.heartRate))} ${isSimulating ? 'animate-pulse' : ''}`} />
+                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('heartRate', vitals.heartRate))} ${isMonitoring ? 'animate-pulse' : ''}`} />
               </div>
             </div>
           </CardContent>
@@ -263,7 +355,7 @@ export function VitalSignsDashboard() {
               </div>
               <div className="flex flex-col items-end gap-2">
                 {getStatusBadge(getVitalStatus('oxygenLevel', vitals.oxygenLevel))}
-                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('oxygenLevel', vitals.oxygenLevel))} ${isSimulating ? 'animate-pulse' : ''}`} />
+                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('oxygenLevel', vitals.oxygenLevel))} ${isMonitoring ? 'animate-pulse' : ''}`} />
               </div>
             </div>
           </CardContent>
@@ -283,7 +375,7 @@ export function VitalSignsDashboard() {
               </div>
               <div className="flex flex-col items-end gap-2">
                 {getStatusBadge(getVitalStatus('humidity', vitals.humidity))}
-                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('humidity', vitals.humidity))} ${isSimulating ? 'animate-pulse' : ''}`} />
+                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('humidity', vitals.humidity))} ${isMonitoring ? 'animate-pulse' : ''}`} />
               </div>
             </div>
           </CardContent>
