@@ -138,10 +138,37 @@ export function VitalSignsDashboard() {
     const timeString = now.toLocaleTimeString()
 
     if (useSimulation) {
-      // Simulation mode
+      // Simulation mode - occasionally generate critical values for testing
+      const shouldGenerateCritical = Math.random() < 0.3 // 30% chance of critical values
+      
+      let temperature, heartRate
+      
+      if (shouldGenerateCritical) {
+        // Generate critical values for testing
+        const criticalType = Math.random()
+        if (criticalType < 0.25) {
+          temperature = parseFloat((38.5 + Math.random() * 2).toFixed(1)) // High fever
+          heartRate = Math.floor(60 + Math.random() * 40)
+        } else if (criticalType < 0.5) {
+          temperature = parseFloat((34.0 + Math.random() * 1.5).toFixed(1)) // Hypothermia
+          heartRate = Math.floor(60 + Math.random() * 40)
+        } else if (criticalType < 0.75) {
+          temperature = parseFloat((36.0 + Math.random() * 2.5).toFixed(1))
+          heartRate = Math.floor(125 + Math.random() * 20) // Tachycardia
+        } else {
+          temperature = parseFloat((36.0 + Math.random() * 2.5).toFixed(1))
+          heartRate = Math.floor(40 + Math.random() * 10) // Bradycardia
+        }
+        console.log('🧪 SIMULATION: Generated critical values for testing')
+      } else {
+        // Generate normal values
+        temperature = parseFloat((36.0 + Math.random() * 2.5).toFixed(1))
+        heartRate = Math.floor(60 + Math.random() * 40)
+      }
+      
       const newVitals: VitalSigns = {
-        temperature: parseFloat((36.0 + Math.random() * 2.5).toFixed(1)),
-        heartRate: Math.floor(60 + Math.random() * 40),
+        temperature,
+        heartRate,
         oxygenLevel: Math.floor(95 + Math.random() * 5),
         humidity: Math.floor(40 + Math.random() * 20),
         timestamp: timeString
@@ -151,7 +178,7 @@ export function VitalSignsDashboard() {
       setArduinoConnected(false)
       setConnectionError("Using simulated data")
       updateHistoricalData(newVitals, timeString)
-      checkVitalAlerts(newVitals)
+      await checkVitalAlerts(newVitals)
 
       // Auto-save if enabled
       if (autoSave) {
@@ -193,7 +220,7 @@ export function VitalSignsDashboard() {
         setArduinoConnected(true)
         setConnectionError("")
         updateHistoricalData(newVitals, timeString)
-        checkVitalAlerts(newVitals)
+        await checkVitalAlerts(newVitals)
 
         // Auto-save if enabled
         if (autoSave) {
@@ -222,19 +249,38 @@ export function VitalSignsDashboard() {
     })
   }
 
-  const checkVitalAlerts = (vitals: VitalSigns) => {
+  const checkVitalAlerts = async (vitals: VitalSigns) => {
     const newAlerts: string[] = []
+    let isCritical = false
 
+    console.log('🔍 Checking vitals for alerts:', { temperature: vitals.temperature, heartRate: vitals.heartRate })
+
+    // Check temperature
     if (vitals.temperature > 38.0) {
       newAlerts.push(`High temperature: ${vitals.temperature}°C`)
+      isCritical = true
+      console.log('🌡️ CRITICAL: High temperature detected:', vitals.temperature)
     } else if (vitals.temperature < 35.5) {
       newAlerts.push(`Low temperature: ${vitals.temperature}°C`)
+      isCritical = true
+      console.log('🧊 CRITICAL: Low temperature detected:', vitals.temperature)
     }
 
-    if (vitals.heartRate > 100) {
+    // Check heart rate
+    if (vitals.heartRate > 120) {
       newAlerts.push(`High heart rate: ${vitals.heartRate} BPM`)
+      isCritical = true
+      console.log('💓 CRITICAL: High heart rate detected:', vitals.heartRate)
+    } else if (vitals.heartRate < 50) {
+      newAlerts.push(`Low heart rate: ${vitals.heartRate} BPM`)
+      isCritical = true
+      console.log('💔 CRITICAL: Low heart rate detected:', vitals.heartRate)
+    } else if (vitals.heartRate > 100) {
+      newAlerts.push(`High heart rate: ${vitals.heartRate} BPM`)
+      console.log('⚠️ WARNING: Elevated heart rate:', vitals.heartRate)
     } else if (vitals.heartRate < 60) {
       newAlerts.push(`Low heart rate: ${vitals.heartRate} BPM`)
+      console.log('⚠️ WARNING: Low heart rate:', vitals.heartRate)
     }
 
     if (vitals.oxygenLevel < 95) {
@@ -242,6 +288,56 @@ export function VitalSignsDashboard() {
     }
 
     setAlerts(newAlerts)
+
+    // Send SOS email if critical vitals detected
+    if (isCritical) {
+      console.log('🚨 CRITICAL VITALS DETECTED - Attempting to send SOS email...')
+      try {
+        const response = await fetch('/api/vitals/sos-alert', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            temperature: vitals.temperature,
+            heartRate: vitals.heartRate
+          })
+        })
+
+        console.log('📡 SOS API Response status:', response.status)
+        
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('❌ SOS API Error Response:', errorText)
+          throw new Error(`API responded with status ${response.status}: ${errorText}`)
+        }
+
+        const result = await response.json()
+        console.log('📨 SOS API Result:', result)
+        
+        if (result.critical && result.alertSent) {
+          console.log('✅ SOS email sent successfully!')
+          toast.error(`🚨 CRITICAL ALERT: ${result.alertType} - SOS email sent!`, {
+            duration: 10000,
+            style: {
+              backgroundColor: '#fee2e2',
+              borderColor: '#dc2626',
+              color: '#991b1b'
+            }
+          })
+        } else if (result.critical && !result.alertSent) {
+          console.log('⚠️ Critical vitals detected but email failed to send')
+          toast.warning(`⚠️ Critical vitals detected but email failed to send`, {
+            duration: 8000
+          })
+        }
+      } catch (error) {
+        console.error('🚨 Failed to send SOS alert:', error)
+        toast.error(`Failed to send critical alert notification: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } else {
+      console.log('✅ Vitals are within acceptable ranges')
+    }
   }
 
   const getVitalStatus = (type: string, value: number) => {
