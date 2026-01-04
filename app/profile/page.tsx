@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 
+import { FHIRImport } from "@/components/fhir-import"
+
 interface Profile {
   id: string
   name: string | null
   email: string | null
-  phone_number: string | null
+  phone: string | null
   caretaker_name: string | null
   relation: string | null
 }
@@ -26,7 +28,7 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    phone_number: "",
+    phone: "",
     caretaker_name: "",
     relation: "",
   })
@@ -63,7 +65,7 @@ export default function ProfilePage() {
         setFormData({
           name: profileData.name || "",
           email: profileData.email || user.email || "",
-          phone_number: profileData.phone_number || "",
+          phone: profileData.phone || "",
           caretaker_name: profileData.caretaker_name || "",
           relation: profileData.relation || "",
         })
@@ -72,7 +74,7 @@ export default function ProfilePage() {
           id: user.id,
           name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
           email: user.email,
-          phone_number: null,
+          phone: null,
           caretaker_name: null,
           relation: null,
         }
@@ -89,7 +91,7 @@ export default function ProfilePage() {
         setFormData({
           name: insertedProfile.name || "",
           email: user.email || "",
-          phone_number: "",
+          phone: "",
           caretaker_name: "",
           relation: "",
         })
@@ -114,7 +116,7 @@ export default function ProfilePage() {
         .update({
           name: formData.name.trim() || "User",
           email: formData.email || null,
-          phone_number: formData.phone_number || null,
+          phone: formData.phone || null,
           caretaker_name: formData.caretaker_name || null,
           relation: formData.relation || null,
         })
@@ -126,7 +128,7 @@ export default function ProfilePage() {
         ...profile,
         name: formData.name.trim() || "User",
         email: formData.email || null,
-        phone_number: formData.phone_number || null,
+        phone: formData.phone || null,
         caretaker_name: formData.caretaker_name || null,
         relation: formData.relation || null,
       })
@@ -145,7 +147,7 @@ export default function ProfilePage() {
       setFormData({
         name: profile.name || "",
         email: profile.email || "",
-        phone_number: profile.phone_number || "",
+        phone: profile.phone || "",
         caretaker_name: profile.caretaker_name || "",
         relation: profile.relation || "",
       })
@@ -166,7 +168,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pt-20 px-4">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Profile Information</CardTitle>
@@ -214,12 +216,12 @@ export default function ProfilePage() {
                   <Input
                     id="phone"
                     type="tel"
-                    value={formData.phone_number}
-                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="Enter your phone number"
                   />
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-md">{profile?.phone_number || "Not provided"}</div>
+                  <div className="p-3 bg-gray-50 rounded-md">{profile?.phone || "Not provided"}</div>
                 )}
               </div>
 
@@ -270,6 +272,8 @@ export default function ProfilePage() {
             </div>
           </CardContent>
         </Card>
+
+        <FHIRImport />
       </div>
     </div>
   )
