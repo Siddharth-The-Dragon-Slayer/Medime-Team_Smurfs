@@ -51,6 +51,8 @@ export function VitalSignsDashboard() {
   const [mounted, setMounted] = useState(false)
   const [connectionError, setConnectionError] = useState<string>("")
 
+  // Remove database real-time updates - fetch directly from Arduino only
+
   // Fix hydration issue by only setting timestamp on client
   useEffect(() => {
     setMounted(true)
@@ -93,37 +95,51 @@ export function VitalSignsDashboard() {
         timestamp: timeString
       }
 
+      // Save simulated data - removed database integration
       setVitals(newVitals)
       setArduinoConnected(false)
       setConnectionError("Using simulated data")
       updateHistoricalData(newVitals, timeString)
       checkVitalAlerts(newVitals)
     } else {
-      // Real Arduino data
+      // Fetch directly from Arduino IP (no API route, no database)
       try {
-        const response = await fetch('/api/arduino')
-        const data: ArduinoResponse = await response.json()
+        const arduinoIP = process.env.NEXT_PUBLIC_ARDUINO_IP || '10.159.145.184' // Arduino IP from env
+        console.log(`Fetching directly from Arduino: http://${arduinoIP}/data`)
+        
+        const response = await fetch(`http://${arduinoIP}/data`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          signal: AbortSignal.timeout(5000) // 5 second timeout
+        })
 
-        if (data.connected && data.source === 'arduino') {
-          const newVitals: VitalSigns = {
-            temperature: data.temperature,
-            heartRate: data.heartRate,
-            oxygenLevel: data.oxygenLevel,
-            humidity: data.humidity,
-            timestamp: timeString
-          }
-
-          setVitals(newVitals)
-          setArduinoConnected(true)
-          setConnectionError("")
-          updateHistoricalData(newVitals, timeString)
-          checkVitalAlerts(newVitals)
-        } else {
-          // Arduino disconnected, switch to simulation
-          setArduinoConnected(false)
-          setConnectionError(data.error || "Arduino disconnected")
-          setUseSimulation(true)
+        if (!response.ok) {
+          throw new Error(`Arduino responded with status: ${response.status}`)
         }
+
+        const data = await response.json()
+        
+        // Transform Arduino data to dashboard format
+        // Convert heartbeat analog value (0-1023) to estimated BPM (60-100)
+        const heartRateBPM = Math.floor(60 + (data.heartbeat / 1023) * 40)
+        
+        const newVitals: VitalSigns = {
+          temperature: parseFloat(data.temperature) || 0,
+          heartRate: heartRateBPM,
+          oxygenLevel: 98, // Default value
+          humidity: 45, // Default value
+          timestamp: timeString
+        }
+
+        // Direct Arduino data - no database saving
+        setVitals(newVitals)
+        setArduinoConnected(true)
+        setConnectionError("")
+        updateHistoricalData(newVitals, timeString)
+        checkVitalAlerts(newVitals)
+        
       } catch (error: any) {
         console.error('Failed to fetch Arduino data:', error)
         setArduinoConnected(false)
