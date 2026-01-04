@@ -3,7 +3,6 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { Navbar } from "@/components/navbar"
 import { MedicationDashboard } from "@/components/medication-dashboard"
-import { VitalSignsDashboard } from "@/components/vital-signs-dashboard"
 import { NotificationPermissionBanner } from "@/components/notification-permission-banner"
 import { VitalsCardsOnly } from "@/components/vitals-cards-only"
 
@@ -91,7 +90,6 @@ export default async function DashboardPage() {
 
       <div className="pt-16 p-6 space-y-8 relative z-10">
         <NotificationPermissionBanner />
-        <VitalSignsDashboard />
         <MedicationDashboard user={data.user} profile={profile} />
       </div>
     </div>
