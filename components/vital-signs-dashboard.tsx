@@ -103,7 +103,7 @@ export function VitalSignsDashboard() {
   const saveVitalsToDatabase = async (vitalsData: VitalSigns) => {
     try {
       setIsSaving(true)
-      
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         throw new Error("User not authenticated")
@@ -144,9 +144,9 @@ export function VitalSignsDashboard() {
     if (useSimulation) {
       // Simulation mode - occasionally generate critical values for testing
       const shouldGenerateCritical = Math.random() < 0.3 // 30% chance of critical values
-      
+
       let temperature, heartRate
-      
+
       if (shouldGenerateCritical) {
         // Generate critical values for testing
         const criticalType = Math.random()
@@ -169,7 +169,7 @@ export function VitalSignsDashboard() {
         temperature = parseFloat((36.0 + Math.random() * 2.5).toFixed(1))
         heartRate = Math.floor(60 + Math.random() * 40)
       }
-      
+
       const newVitals: VitalSigns = {
         temperature,
         heartRate,
@@ -194,7 +194,7 @@ export function VitalSignsDashboard() {
       try {
         const arduinoIP = process.env.NEXT_PUBLIC_ARDUINO_IP || '10.159.145.184' // Arduino IP from env
         console.log(`Fetching directly from Arduino: http://${arduinoIP}/data`)
-        
+
         const response = await fetch(`http://${arduinoIP}/data`, {
           method: 'GET',
           headers: {
@@ -208,11 +208,11 @@ export function VitalSignsDashboard() {
         }
 
         const data = await response.json()
-        
+
         // Transform Arduino data to dashboard format
         // Convert heartbeat analog value (0-1023) to estimated BPM (60-100)
         const heartRateBPM = Math.floor(60 + (data.heartbeat / 1023) * 40)
-        
+
         const newVitals: VitalSigns = {
           temperature: parseFloat(data.temperature) || 0,
           heartRate: heartRateBPM,
@@ -232,7 +232,7 @@ export function VitalSignsDashboard() {
         if (autoSave) {
           await saveVitalsToDatabase(newVitals)
         }
-        
+
       } catch (error: any) {
         console.error('Failed to fetch Arduino data:', error)
         setArduinoConnected(false)
@@ -312,7 +312,7 @@ export function VitalSignsDashboard() {
         })
 
         console.log('📡 SOS API Response status:', response.status)
-        
+
         if (!response.ok) {
           const errorText = await response.text()
           console.error('❌ SOS API Error Response:', errorText)
@@ -321,7 +321,7 @@ export function VitalSignsDashboard() {
 
         const result = await response.json()
         console.log('📨 SOS API Result:', result)
-        
+
         if (result.critical && result.alertSent) {
           console.log('✅ SOS email sent successfully!')
           toast.error(`🚨 CRITICAL ALERT: ${result.alertType} - SOS email sent!`, {
