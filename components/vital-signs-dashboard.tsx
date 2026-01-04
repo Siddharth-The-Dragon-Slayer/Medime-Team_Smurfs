@@ -13,7 +13,8 @@ interface VitalSigns {
   temperature: number
   heartRate: number
   oxygenLevel: number
-  humidity: number
+  bloodPressureSystolic: number
+  bloodPressureDiastolic: number
   timestamp: string
 }
 
@@ -22,14 +23,16 @@ interface VitalData {
   temperature: number
   heartRate: number
   oxygenLevel: number
-  humidity: number
+  bloodPressureSystolic: number
+  bloodPressureDiastolic: number
 }
 
 interface ArduinoResponse {
   temperature: number
   heartRate: number
   oxygenLevel: number
-  humidity: number
+  bloodPressureSystolic: number
+  bloodPressureDiastolic: number
   timestamp: string
   connected: boolean
   source: string
@@ -41,17 +44,18 @@ export function VitalSignsDashboard() {
     temperature: 36.5,
     heartRate: 72,
     oxygenLevel: 98,
-    humidity: 45,
+    bloodPressureSystolic: 120,
+    bloodPressureDiastolic: 80,
     timestamp: ""
   })
 
   // Initialize with some default data so graph always shows
   const [historicalData, setHistoricalData] = useState<VitalData[]>([
-    { time: "10:00", temperature: 36.5, heartRate: 72, oxygenLevel: 98, humidity: 45 },
-    { time: "10:05", temperature: 36.6, heartRate: 74, oxygenLevel: 97, humidity: 46 },
-    { time: "10:10", temperature: 36.4, heartRate: 70, oxygenLevel: 98, humidity: 44 },
-    { time: "10:15", temperature: 36.7, heartRate: 76, oxygenLevel: 99, humidity: 47 },
-    { time: "10:20", temperature: 36.5, heartRate: 73, oxygenLevel: 98, humidity: 45 }
+    { time: "10:00", temperature: 36.5, heartRate: 72, oxygenLevel: 98, bloodPressureSystolic: 120, bloodPressureDiastolic: 80 },
+    { time: "10:05", temperature: 36.6, heartRate: 74, oxygenLevel: 97, bloodPressureSystolic: 118, bloodPressureDiastolic: 78 },
+    { time: "10:10", temperature: 36.4, heartRate: 70, oxygenLevel: 98, bloodPressureSystolic: 122, bloodPressureDiastolic: 82 },
+    { time: "10:15", temperature: 36.7, heartRate: 76, oxygenLevel: 99, bloodPressureSystolic: 119, bloodPressureDiastolic: 79 },
+    { time: "10:20", temperature: 36.5, heartRate: 73, oxygenLevel: 98, bloodPressureSystolic: 121, bloodPressureDiastolic: 81 }
   ])
   const [isMonitoring, setIsMonitoring] = useState(false)
   const [arduinoConnected, setArduinoConnected] = useState(false)
@@ -170,7 +174,8 @@ export function VitalSignsDashboard() {
         temperature,
         heartRate,
         oxygenLevel: Math.floor(95 + Math.random() * 5),
-        humidity: Math.floor(40 + Math.random() * 20),
+        bloodPressureSystolic: Math.floor(110 + Math.random() * 30), // 110-140 mmHg
+        bloodPressureDiastolic: Math.floor(70 + Math.random() * 20), // 70-90 mmHg
         timestamp: timeString
       }
 
@@ -212,7 +217,8 @@ export function VitalSignsDashboard() {
           temperature: parseFloat(data.temperature) || 0,
           heartRate: heartRateBPM,
           oxygenLevel: 98, // Default value
-          humidity: 45, // Default value
+          bloodPressureSystolic: 120, // Default value
+          bloodPressureDiastolic: 80, // Default value
           timestamp: timeString
         }
 
@@ -243,7 +249,8 @@ export function VitalSignsDashboard() {
         temperature: newVitals.temperature,
         heartRate: newVitals.heartRate,
         oxygenLevel: newVitals.oxygenLevel,
-        humidity: newVitals.humidity
+        bloodPressureSystolic: newVitals.bloodPressureSystolic,
+        bloodPressureDiastolic: newVitals.bloodPressureDiastolic
       }]
       return newData.slice(-20) // Keep last 20 points
     })
@@ -340,7 +347,7 @@ export function VitalSignsDashboard() {
     }
   }
 
-  const getVitalStatus = (type: string, value: number) => {
+  const getVitalStatus = (type: string, value: number, value2?: number) => {
     switch (type) {
       case 'temperature':
         if (value >= 35.5 && value <= 37.5) return 'normal'
@@ -354,9 +361,13 @@ export function VitalSignsDashboard() {
         if (value >= 95) return 'normal'
         if (value >= 90) return 'warning'
         return 'critical'
-      case 'humidity':
-        if (value >= 40 && value <= 60) return 'normal'
-        return 'warning'
+      case 'bloodPressure':
+        // value = systolic, value2 = diastolic
+        const systolic = value
+        const diastolic = value2 || 0
+        if (systolic >= 90 && systolic <= 120 && diastolic >= 60 && diastolic <= 80) return 'normal'
+        if ((systolic > 120 && systolic <= 140) || (diastolic > 80 && diastolic <= 90)) return 'warning'
+        return 'critical'
       default:
         return 'normal'
     }
@@ -566,21 +577,21 @@ export function VitalSignsDashboard() {
           </CardContent>
         </Card>
 
-        {/* Humidity */}
+        {/* Blood Pressure */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Humidity</CardTitle>
-            <Droplets className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Blood Pressure</CardTitle>
+            <Heart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold">{vitals.humidity}%</div>
-                <p className="text-xs text-muted-foreground">Environmental</p>
+                <div className="text-2xl font-bold">{vitals.bloodPressureSystolic}/{vitals.bloodPressureDiastolic}</div>
+                <p className="text-xs text-muted-foreground">mmHg (Systolic/Diastolic)</p>
               </div>
               <div className="flex flex-col items-end gap-2">
-                {getStatusBadge(getVitalStatus('humidity', vitals.humidity))}
-                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('humidity', vitals.humidity))} ${isMonitoring ? 'animate-pulse' : ''}`} />
+                {getStatusBadge(getVitalStatus('bloodPressure', vitals.bloodPressureSystolic, vitals.bloodPressureDiastolic))}
+                <div className={`h-3 w-3 rounded-full ${getStatusColor(getVitalStatus('bloodPressure', vitals.bloodPressureSystolic, vitals.bloodPressureDiastolic))} ${isMonitoring ? 'animate-pulse' : ''}`} />
               </div>
             </div>
           </CardContent>
@@ -623,10 +634,10 @@ export function VitalSignsDashboard() {
           </CardContent>
         </Card>
 
-        {/* Oxygen & Humidity Chart */}
+        {/* Oxygen & Blood Pressure Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Oxygen Level & Humidity Trends</CardTitle>
+            <CardTitle>Oxygen Level & Blood Pressure Trends</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -634,7 +645,7 @@ export function VitalSignsDashboard() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" />
                 <YAxis yAxisId="oxygen" orientation="left" domain={[90, 100]} />
-                <YAxis yAxisId="humidity" orientation="right" domain={[30, 70]} />
+                <YAxis yAxisId="bp" orientation="right" domain={[60, 150]} />
                 <Tooltip />
                 <Line
                   yAxisId="oxygen"
@@ -645,12 +656,20 @@ export function VitalSignsDashboard() {
                   name="Oxygen Level (%)"
                 />
                 <Line
-                  yAxisId="humidity"
+                  yAxisId="bp"
                   type="monotone"
-                  dataKey="humidity"
+                  dataKey="bloodPressureSystolic"
                   stroke="#8b5cf6"
                   strokeWidth={2}
-                  name="Humidity (%)"
+                  name="Systolic BP (mmHg)"
+                />
+                <Line
+                  yAxisId="bp"
+                  type="monotone"
+                  dataKey="bloodPressureDiastolic"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  name="Diastolic BP (mmHg)"
                 />
               </LineChart>
             </ResponsiveContainer>

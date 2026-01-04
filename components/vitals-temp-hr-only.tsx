@@ -125,19 +125,19 @@ export function VitalsTempHrOnly() {
         </CardContent>
       </Card>
 
-      {/* Humidity */}
+      {/* Blood Pressure */}
       <Card className="bg-white/80 backdrop-blur-sm border-green-200">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Humidity</CardTitle>
+          <CardTitle className="text-sm font-medium">Blood Pressure</CardTitle>
           <svg className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
           </svg>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold">59%</div>
-              <p className="text-xs text-muted-foreground">Environmental</p>
+              <div className="text-2xl font-bold">120/80</div>
+              <p className="text-xs text-muted-foreground">mmHg (Systolic/Diastolic)</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <Badge className="bg-green-100 text-green-800">Normal</Badge>

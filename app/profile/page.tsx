@@ -15,6 +15,7 @@ interface Profile {
   phone_number: string | null
   caretaker_name: string | null
   relation: string | null
+  fhir_id: string | null
 }
 
 export default function ProfilePage() {
@@ -29,6 +30,7 @@ export default function ProfilePage() {
     phone_number: "",
     caretaker_name: "",
     relation: "",
+    fhir_id: "",
   })
   const router = useRouter()
   const supabase = createClient()
@@ -66,6 +68,7 @@ export default function ProfilePage() {
           phone_number: profileData.phone_number || "",
           caretaker_name: profileData.caretaker_name || "",
           relation: profileData.relation || "",
+          fhir_id: profileData.fhir_id || "",
         })
       } else {
         const newProfile = {
@@ -75,6 +78,7 @@ export default function ProfilePage() {
           phone_number: null,
           caretaker_name: null,
           relation: null,
+          fhir_id: null,
         }
 
         const { data: insertedProfile, error: insertError } = await supabase
@@ -92,6 +96,7 @@ export default function ProfilePage() {
           phone_number: "",
           caretaker_name: "",
           relation: "",
+          fhir_id: "",
         })
       }
     } catch (error) {
@@ -117,6 +122,7 @@ export default function ProfilePage() {
           phone_number: formData.phone_number || null,
           caretaker_name: formData.caretaker_name || null,
           relation: formData.relation || null,
+          fhir_id: formData.fhir_id || null,
         })
         .eq("id", profile.id)
 
@@ -129,6 +135,7 @@ export default function ProfilePage() {
         phone_number: formData.phone_number || null,
         caretaker_name: formData.caretaker_name || null,
         relation: formData.relation || null,
+        fhir_id: formData.fhir_id || null,
       })
 
       setIsEditing(false)
@@ -148,6 +155,7 @@ export default function ProfilePage() {
         phone_number: profile.phone_number || "",
         caretaker_name: profile.caretaker_name || "",
         relation: profile.relation || "",
+        fhir_id: profile.fhir_id || "",
       })
     }
     setIsEditing(false)
@@ -249,6 +257,23 @@ export default function ProfilePage() {
                 ) : (
                   <div className="p-3 bg-gray-50 rounded-md">{profile?.relation || "Not provided"}</div>
                 )}
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="fhir_id">FHIR ID</Label>
+                {isEditing ? (
+                  <Input
+                    id="fhir_id"
+                    value={formData.fhir_id}
+                    onChange={(e) => setFormData({ ...formData, fhir_id: e.target.value })}
+                    placeholder="Your healthcare provider's FHIR ID"
+                  />
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-md">{profile?.fhir_id || "Not provided"}</div>
+                )}
+                <p className="text-xs text-gray-500">
+                  FHIR ID connects your account to your healthcare provider's system for seamless data exchange
+                </p>
               </div>
             </div>
 
