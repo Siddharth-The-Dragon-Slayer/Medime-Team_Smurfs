@@ -4,8 +4,10 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Heart, Thermometer, Droplets, Activity, AlertTriangle, Play, Pause, Wifi, WifiOff } from "lucide-react"
+import { Heart, Thermometer, Droplets, Activity, AlertTriangle, Play, Pause, Wifi, WifiOff, Save, Database } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts"
+import { createBrowserClient } from "@supabase/ssr"
+import { toast } from "sonner"
 
 interface VitalSigns {
   temperature: number
@@ -43,15 +45,28 @@ export function VitalSignsDashboard() {
     timestamp: ""
   })
 
-  const [historicalData, setHistoricalData] = useState<VitalData[]>([])
+  // Initialize with some default data so graph always shows
+  const [historicalData, setHistoricalData] = useState<VitalData[]>([
+    { time: "10:00", temperature: 36.5, heartRate: 72, oxygenLevel: 98, humidity: 45 },
+    { time: "10:05", temperature: 36.6, heartRate: 74, oxygenLevel: 97, humidity: 46 },
+    { time: "10:10", temperature: 36.4, heartRate: 70, oxygenLevel: 98, humidity: 44 },
+    { time: "10:15", temperature: 36.7, heartRate: 76, oxygenLevel: 99, humidity: 47 },
+    { time: "10:20", temperature: 36.5, heartRate: 73, oxygenLevel: 98, humidity: 45 }
+  ])
   const [isMonitoring, setIsMonitoring] = useState(false)
   const [arduinoConnected, setArduinoConnected] = useState(false)
   const [useSimulation, setUseSimulation] = useState(false)
   const [alerts, setAlerts] = useState<string[]>([])
   const [mounted, setMounted] = useState(false)
   const [connectionError, setConnectionError] = useState<string>("")
+  const [autoSave, setAutoSave] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<string>("")
 
-  // Remove database real-time updates - fetch directly from Arduino only
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   // Fix hydration issue by only setting timestamp on client
   useEffect(() => {
@@ -81,6 +96,43 @@ export function VitalSignsDashboard() {
     }
   }, [isMonitoring, useSimulation])
 
+  const saveVitalsToDatabase = async (vitalsData: VitalSigns) => {
+    try {
+      setIsSaving(true)
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error("User not authenticated")
+      }
+
+      const { error } = await supabase
+        .from('vitals')
+        .insert({
+          user_id: user.id,
+          temperature_celsius: vitalsData.temperature,
+          heart_rate_bpm: vitalsData.heartRate,
+          oxygen_level_percent: vitalsData.oxygenLevel,
+          humidity_percent: vitalsData.humidity,
+          measurement_source: useSimulation ? 'manual' : 'device',
+          device_id: useSimulation ? 'simulator' : process.env.NEXT_PUBLIC_ARDUINO_IP || 'arduino_device',
+          recorded_at: new Date().toISOString(),
+          notes: `Recorded via ${useSimulation ? 'manual entry' : 'Arduino device'}`
+        })
+
+      if (error) {
+        throw error
+      }
+
+      setLastSaved(new Date().toLocaleTimeString())
+      toast.success("Vitals saved successfully")
+    } catch (error: any) {
+      console.error('Failed to save vitals:', error)
+      toast.error(`Failed to save vitals: ${error.message}`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const fetchVitalSigns = async () => {
     const now = new Date()
     const timeString = now.toLocaleTimeString()
@@ -95,12 +147,16 @@ export function VitalSignsDashboard() {
         timestamp: timeString
       }
 
-      // Save simulated data - removed database integration
       setVitals(newVitals)
       setArduinoConnected(false)
       setConnectionError("Using simulated data")
       updateHistoricalData(newVitals, timeString)
       checkVitalAlerts(newVitals)
+
+      // Auto-save if enabled
+      if (autoSave) {
+        await saveVitalsToDatabase(newVitals)
+      }
     } else {
       // Fetch directly from Arduino IP (no API route, no database)
       try {
@@ -133,12 +189,16 @@ export function VitalSignsDashboard() {
           timestamp: timeString
         }
 
-        // Direct Arduino data - no database saving
         setVitals(newVitals)
         setArduinoConnected(true)
         setConnectionError("")
         updateHistoricalData(newVitals, timeString)
         checkVitalAlerts(newVitals)
+
+        // Auto-save if enabled
+        if (autoSave) {
+          await saveVitalsToDatabase(newVitals)
+        }
         
       } catch (error: any) {
         console.error('Failed to fetch Arduino data:', error)
@@ -236,6 +296,25 @@ export function VitalSignsDashboard() {
             </span>
             <div className="flex items-center gap-3">
               <Button
+                onClick={() => setAutoSave(!autoSave)}
+                variant={autoSave ? "default" : "outline"}
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Database className="h-4 w-4" />
+                {autoSave ? "Auto-Save ON" : "Auto-Save OFF"}
+              </Button>
+              <Button
+                onClick={() => saveVitalsToDatabase(vitals)}
+                variant="outline"
+                size="sm"
+                disabled={isSaving}
+                className="flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "Saving..." : "Save Now"}
+              </Button>
+              <Button
                 onClick={() => setUseSimulation(!useSimulation)}
                 variant="outline"
                 size="sm"
@@ -280,6 +359,14 @@ export function VitalSignsDashboard() {
               )}
             </div>
 
+            {/* Save Status */}
+            <div className="flex items-center gap-2">
+              <div className={`h-3 w-3 rounded-full ${autoSave ? 'bg-blue-500' : 'bg-gray-300'}`} />
+              <span className="text-sm text-gray-600">
+                {autoSave ? 'Auto-saving enabled' : 'Manual save only'}
+              </span>
+            </div>
+
             {connectionError && !arduinoConnected && (
               <span className="text-xs text-gray-500">
                 {connectionError}
@@ -289,6 +376,12 @@ export function VitalSignsDashboard() {
             <div className="text-sm text-gray-500">
               {mounted ? `Last updated: ${vitals.timestamp}` : 'Loading...'}
             </div>
+
+            {lastSaved && (
+              <div className="text-sm text-blue-600">
+                Last saved: {lastSaved}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -398,78 +491,76 @@ export function VitalSignsDashboard() {
         </Card>
       </div>
 
-      {/* Charts */}
-      {historicalData.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Temperature & Heart Rate Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Temperature & Heart Rate Trends</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={historicalData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="time" />
-                  <YAxis yAxisId="temp" orientation="left" domain={[35, 40]} />
-                  <YAxis yAxisId="hr" orientation="right" domain={[50, 120]} />
-                  <Tooltip />
-                  <Line
-                    yAxisId="temp"
-                    type="monotone"
-                    dataKey="temperature"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    name="Temperature (°C)"
-                  />
-                  <Line
-                    yAxisId="hr"
-                    type="monotone"
-                    dataKey="heartRate"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    name="Heart Rate (BPM)"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+      {/* Charts - Always show */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Temperature & Heart Rate Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Temperature & Heart Rate Trends</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={historicalData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis yAxisId="temp" orientation="left" domain={[35, 40]} />
+                <YAxis yAxisId="hr" orientation="right" domain={[50, 120]} />
+                <Tooltip />
+                <Line
+                  yAxisId="temp"
+                  type="monotone"
+                  dataKey="temperature"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  name="Temperature (°C)"
+                />
+                <Line
+                  yAxisId="hr"
+                  type="monotone"
+                  dataKey="heartRate"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  name="Heart Rate (BPM)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
-          {/* Oxygen & Humidity Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Oxygen Level & Humidity Trends</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={historicalData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="time" />
-                  <YAxis yAxisId="oxygen" orientation="left" domain={[90, 100]} />
-                  <YAxis yAxisId="humidity" orientation="right" domain={[30, 70]} />
-                  <Tooltip />
-                  <Line
-                    yAxisId="oxygen"
-                    type="monotone"
-                    dataKey="oxygenLevel"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    name="Oxygen Level (%)"
-                  />
-                  <Line
-                    yAxisId="humidity"
-                    type="monotone"
-                    dataKey="humidity"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    name="Humidity (%)"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        {/* Oxygen & Humidity Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Oxygen Level & Humidity Trends</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={historicalData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis yAxisId="oxygen" orientation="left" domain={[90, 100]} />
+                <YAxis yAxisId="humidity" orientation="right" domain={[30, 70]} />
+                <Tooltip />
+                <Line
+                  yAxisId="oxygen"
+                  type="monotone"
+                  dataKey="oxygenLevel"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  name="Oxygen Level (%)"
+                />
+                <Line
+                  yAxisId="humidity"
+                  type="monotone"
+                  dataKey="humidity"
+                  stroke="#8b5cf6"
+                  strokeWidth={2}
+                  name="Humidity (%)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
