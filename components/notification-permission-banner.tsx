@@ -18,6 +18,9 @@ export function NotificationPermissionBanner() {
             if (!dismissed) {
                 setIsVisible(true)
             }
+        } else {
+            // Hide banner if permission is granted or denied
+            setIsVisible(false)
         }
     }, [isSupported, permission])
 
